@@ -54,6 +54,12 @@ vastai-pick --top 5
 
 # Use a custom Docker image
 vastai-pick --image pytorch/pytorch:latest --launch
+
+# Use Vast template hash directly (recommended for prebuilt ComfyUI setup)
+vastai-pick --template-hash 4ea55a5295fa7a2418b8a0d01b6e6eb7 --launch
+
+# You can also pass a full Vast URL containing template_id
+vastai-pick --template-hash "https://cloud.vast.ai?ref_id=62897&template_id=4ea55a5295fa7a2418b8a0d01b6e6eb7" --launch
 ```
 
 ## Demo
@@ -138,8 +144,10 @@ All 19 GPUs currently available on Vast.ai, from RTX 3090 to B200. GPU names are
 | `--gpu` | interactive | GPU model name — skips picker if provided |
 | `--min-disk` | 200 | Minimum disk space in GB |
 | `--max-price` | 2.0 | Maximum $/hr |
-| `--max-bwcost` | 0.15 | Maximum bandwidth cost in $/TB |
-| `--image` | `vastai/comfyui:latest` | Docker image to use |
+| `--max-bwcost` | 10.0 | Maximum bandwidth cost in $/TB |
+| `--min-reliability` | 0.985 | Minimum host reliability score (0..1) |
+| `--image` | `yanwk/comfyui-boot:latest` | Docker image to use |
+| `--template-hash` | `4ea55a5295fa7a2418b8a0d01b6e6eb7` | Vast template hash (or full URL containing `template_id`) used at launch |
 | `--launch` | false | Auto-launch best offer, no prompt |
 | `--top` | 3 | Number of offers to display |
 

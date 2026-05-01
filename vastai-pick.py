@@ -20,7 +20,7 @@ DEFAULT_MAX_PRICE = 2.0  # $/hr per GPU
 DEFAULT_MAX_BWCOST = 10.0  # $/TB — real field: internet_down_cost_per_tb
 DEFAULT_MIN_RELIABILITY = 0.985  # 98.5%
 COMFYUI_IMAGE = "yanwk/comfyui-boot:latest"
-DEFAULT_TEMPLATE_HASH = "4ea55a5295fa7a2418b8a0d01b6e6eb7"
+DEFAULT_TEMPLATE_HASH = "feb2230956433009f0087e1af9c81d21"
 
 # GPU menu shown when --gpu is not provided
 # Names must match Vast.ai internal gpu_name field exactly (spaces included)

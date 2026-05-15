@@ -31,68 +31,73 @@ import sys
 from urllib.parse import parse_qs, urlparse
 
 # ── defaults ─────────────────────────────────────────────────────────────────
-DEFAULT_MIN_DISK       = 250      # GB — for no-volume mode
-VOLUME_CONTAINER_DISK  = 30       # GB — container only when volume is mounted
-DEFAULT_MAX_PRICE      = 2.0      # $/hr
-DEFAULT_MAX_BWCOST     = 10.0     # $/TB
+DEFAULT_MIN_DISK = 250  # GB — for no-volume mode
+VOLUME_CONTAINER_DISK = 30  # GB — container only when volume is mounted
+DEFAULT_MAX_PRICE = 2.0  # $/hr
+DEFAULT_MAX_BWCOST = 10.0  # $/TB
 DEFAULT_MIN_RELIABILITY = 0.985
-COMFYUI_IMAGE          = "vastai/comfy:v0.19.3-cuda-12.9-py312"
-DEFAULT_TEMPLATE_HASH  = "feb2230956433009f0087e1af9c81d21"
-BOOT_SCRIPT_URL        = "https://raw.githubusercontent.com/sinclairfr/medo-comfyui-vastai/main/boot_vast.sh"
-ON_START_URL           = "https://raw.githubusercontent.com/sinclairfr/medo-comfyui-vastai/main/on_start.sh"
+COMFYUI_IMAGE = "vastai/comfy:v0.19.3-cuda-12.9-py312"
+DEFAULT_TEMPLATE_HASH = "29c519691316681a4ae6a451472d0771"
+BOOT_SCRIPT_URL = (
+    "https://raw.githubusercontent.com/sinclairfr/medo-comfyui-vastai/main/boot_vast.sh"
+)
+ON_START_URL = (
+    "https://raw.githubusercontent.com/sinclairfr/medo-comfyui-vastai/main/on_start.sh"
+)
 
 GPU_MENU = [
     # ── consumer / prosumer ──────────────────────────────────────────────────
-    ("RTX 4090",      "24GB  — best price/perf, FLUX inference & LoRA"),
-    ("RTX 5090",      "32GB  — latest gen, excellent for large models"),
-    ("RTX 5080",      "16GB  — budget next-gen"),
-    ("RTX 5070 Ti",   "16GB  — mid-range next-gen"),
-    ("RTX 5070",      "12GB  — cheapest next-gen, limited for FLUX"),
-    ("RTX 3090",      "24GB  — older, often very cheap"),
-    ("RTX 4070S Ti",  "16GB  — budget option"),
-    ("RTX 4070S",     "12GB  — budget, limited for large models"),
+    ("RTX 4090", "24GB  — best price/perf, FLUX inference & LoRA"),
+    ("RTX 5090", "32GB  — latest gen, excellent for large models"),
+    ("RTX 5080", "16GB  — budget next-gen"),
+    ("RTX 5070 Ti", "16GB  — mid-range next-gen"),
+    ("RTX 5070", "12GB  — cheapest next-gen, limited for FLUX"),
+    ("RTX 3090", "24GB  — older, often very cheap"),
+    ("RTX 4070S Ti", "16GB  — budget option"),
+    ("RTX 4070S", "12GB  — budget, limited for large models"),
     # ── workstation ──────────────────────────────────────────────────────────
     ("RTX PRO 6000 WS", "96GB  — massive VRAM, no quantization needed"),
-    ("RTX PRO 6000 S",  "48GB  — workstation grade"),
-    ("RTX PRO 5000",    "32GB  — mid workstation"),
-    ("RTX PRO 4000",    "20GB  — entry workstation"),
-    ("RTX 6000Ada",     "48GB  — Ada Lovelace, solid for training"),
+    ("RTX PRO 6000 S", "48GB  — workstation grade"),
+    ("RTX PRO 5000", "32GB  — mid workstation"),
+    ("RTX PRO 4000", "20GB  — entry workstation"),
+    ("RTX 6000Ada", "48GB  — Ada Lovelace, solid for training"),
     # ── data center ──────────────────────────────────────────────────────────
-    ("A100 SXM4",  "80GB  — LoRA training without quantization"),
-    ("H100 SXM",   "80GB  — fastest training, premium price"),
-    ("H100 NVL",   "94GB  — NVLink variant"),
-    ("H200",       "141GB — top tier, very expensive"),
-    ("H200 NVL",   "141GB — NVLink variant"),
-    ("B200",       "192GB — Blackwell, bleeding edge"),
+    ("A100 SXM4", "80GB  — LoRA training without quantization"),
+    ("H100 SXM", "80GB  — fastest training, premium price"),
+    ("H100 NVL", "94GB  — NVLink variant"),
+    ("H200", "141GB — top tier, very expensive"),
+    ("H200 NVL", "141GB — NVLink variant"),
+    ("B200", "192GB — Blackwell, bleeding edge"),
 ]
 
 # ── scoring weights ───────────────────────────────────────────────────────────
 # Two profiles: volume mode (disk_bw critical, storage cost matters) vs no-volume
 
 WEIGHTS_NO_VOLUME = dict(
-    price       = 0.35,   # lower dph = better
-    bw_cost     = 0.15,   # lower inet_down_cost = better (R2 egress free, but still)
-    inet_down   = 0.10,   # higher net speed = faster R2 pull
-    disk_bw     = 0.10,   # faster local disk = faster model load
-    storage_cost= 0.05,   # minor: local disk storage cost while stopped
-    reliability = 0.20,   # uptime
-    dlp_score   = 0.05,   # platform perf/$ score
+    price=0.35,  # lower dph = better
+    bw_cost=0.15,  # lower inet_down_cost = better (R2 egress free, but still)
+    inet_down=0.10,  # higher net speed = faster R2 pull
+    disk_bw=0.10,  # faster local disk = faster model load
+    storage_cost=0.05,  # minor: local disk storage cost while stopped
+    reliability=0.20,  # uptime
+    dlp_score=0.05,  # platform perf/$ score
 )
 
 WEIGHTS_VOLUME = dict(
-    price       = 0.35,   # still the main driver
-    bw_cost     = 0.05,   # barely matters — no R2 pull
-    inet_down   = 0.03,   # barely matters — no R2 pull
-    disk_bw     = 0.22,   # critical — all model I/O goes through this
-    storage_cost= 0.10,   # volume storage billed permanently
-    reliability = 0.22,   # critical — volume machine must stay online
-    dlp_score   = 0.03,
+    price=0.35,  # still the main driver
+    bw_cost=0.05,  # barely matters — no R2 pull
+    inet_down=0.03,  # barely matters — no R2 pull
+    disk_bw=0.22,  # critical — all model I/O goes through this
+    storage_cost=0.10,  # volume storage billed permanently
+    reliability=0.22,  # critical — volume machine must stay online
+    dlp_score=0.03,
 )
 
 GB_PER_TB = 1000.0
 
 
 # ── vastai helpers ────────────────────────────────────────────────────────────
+
 
 def run_vastai(args: list[str]) -> dict | list:
     cmd = ["vastai"] + args + ["--raw"]
@@ -146,9 +151,13 @@ def resolve_volume(volume_arg: str) -> tuple[int, int]:
             machine_id = v.get("machine_id")
             size = v.get("size", "?")
             name = v.get("name", "")
-            print(f"[volume] V.{vol_id}  name={name!r}  size={size}GB  machine_id={machine_id}")
+            print(
+                f"[volume] V.{vol_id}  name={name!r}  size={size}GB  machine_id={machine_id}"
+            )
             if not machine_id:
-                print("[error] volume has no machine_id — is it attached to a running instance?")
+                print(
+                    "[error] volume has no machine_id — is it attached to a running instance?"
+                )
                 sys.exit(1)
             return vol_id, machine_id
 
@@ -178,7 +187,9 @@ def fetch_offers(
     if machine_id is not None:
         # volume mode: don't filter by disk (volume provides storage)
         query_parts.append(f"machine_id={machine_id}")
-        print(f"[search] locked to machine_id={machine_id} (volume mode, no disk filter)")
+        print(
+            f"[search] locked to machine_id={machine_id} (volume mode, no disk filter)"
+        )
     else:
         query_parts.append(f"disk_space>={min_disk}")
 
@@ -188,6 +199,7 @@ def fetch_offers(
 
 
 # ── scoring ───────────────────────────────────────────────────────────────────
+
 
 def normalize(values: list[float], invert=False) -> list[float]:
     mn, mx = min(values), max(values)
@@ -207,35 +219,37 @@ def score_offers(offers: list[dict], volume_mode: bool) -> list[dict]:
         v = o.get(key)
         return v if v is not None else default
 
-    prices        = [field(o, "dph_total", 99) for o in offers]
-    bw_costs      = [
-        field(o, "internet_down_cost_per_tb") or
-        (field(o, "inet_down_cost") * GB_PER_TB)
+    prices = [field(o, "dph_total", 99) for o in offers]
+    bw_costs = [
+        field(o, "internet_down_cost_per_tb")
+        or (field(o, "inet_down_cost") * GB_PER_TB)
         for o in offers
     ]
-    inet_downs    = [field(o, "inet_down") for o in offers]
-    disk_bws      = [field(o, "disk_bw") for o in offers]
-    stor_costs    = [field(o, "storage_total_cost") for o in offers]
-    reliabilities = [field(o, "reliability2") or field(o, "reliability") for o in offers]
-    dlp_scores    = [field(o, "dlperf_usd") for o in offers]
+    inet_downs = [field(o, "inet_down") for o in offers]
+    disk_bws = [field(o, "disk_bw") for o in offers]
+    stor_costs = [field(o, "storage_total_cost") for o in offers]
+    reliabilities = [
+        field(o, "reliability2") or field(o, "reliability") for o in offers
+    ]
+    dlp_scores = [field(o, "dlperf_usd") for o in offers]
 
-    n_price    = normalize(prices,        invert=True)
-    n_bw_cost  = normalize(bw_costs,      invert=True)
-    n_inet     = normalize(inet_downs,    invert=False)
-    n_disk_bw  = normalize(disk_bws,      invert=False)
-    n_stor     = normalize(stor_costs,    invert=True)
-    n_rel      = normalize(reliabilities, invert=False)
-    n_dlp      = normalize(dlp_scores,    invert=False)
+    n_price = normalize(prices, invert=True)
+    n_bw_cost = normalize(bw_costs, invert=True)
+    n_inet = normalize(inet_downs, invert=False)
+    n_disk_bw = normalize(disk_bws, invert=False)
+    n_stor = normalize(stor_costs, invert=True)
+    n_rel = normalize(reliabilities, invert=False)
+    n_dlp = normalize(dlp_scores, invert=False)
 
     for i, o in enumerate(offers):
         o["_score"] = (
-            W["price"]        * n_price[i]   +
-            W["bw_cost"]      * n_bw_cost[i] +
-            W["inet_down"]    * n_inet[i]     +
-            W["disk_bw"]      * n_disk_bw[i] +
-            W["storage_cost"] * n_stor[i]     +
-            W["reliability"]  * n_rel[i]      +
-            W["dlp_score"]    * n_dlp[i]
+            W["price"] * n_price[i]
+            + W["bw_cost"] * n_bw_cost[i]
+            + W["inet_down"] * n_inet[i]
+            + W["disk_bw"] * n_disk_bw[i]
+            + W["storage_cost"] * n_stor[i]
+            + W["reliability"] * n_rel[i]
+            + W["dlp_score"] * n_dlp[i]
         )
         o["_volume_mode"] = volume_mode
 
@@ -244,23 +258,24 @@ def score_offers(offers: list[dict], volume_mode: bool) -> list[dict]:
 
 # ── formatting ────────────────────────────────────────────────────────────────
 
+
 def fmt_offer(rank: int, o: dict, volume_mode: bool, vol_id: int | None) -> str:
-    gpu      = o.get("gpu_name", "?")
-    n_gpus   = o.get("num_gpus", 1)
-    dph_gpu  = o.get("dph_base", 0)
+    gpu = o.get("gpu_name", "?")
+    n_gpus = o.get("num_gpus", 1)
+    dph_gpu = o.get("dph_base", 0)
     dph_stor = o.get("storage_total_cost", 0)
-    dph_tot  = o.get("dph_total", 0)
-    disk     = o.get("disk_space", 0)
-    disk_bw  = o.get("disk_bw", 0)
-    inet_dn  = o.get("inet_down", 0)
-    bw_cost  = o.get("internet_down_cost_per_tb", 0) or 0
-    country  = o.get("geolocation", "?")
-    rel      = (o.get("reliability2") or o.get("reliability") or 0) * 100
-    vram     = o.get("gpu_ram", 0)
-    score    = o.get("_score", 0)
-    oid      = o.get("id", "?")
-    cuda     = o.get("cuda_max_good", "?")
-    machine  = o.get("machine_id", "?")
+    dph_tot = o.get("dph_total", 0)
+    disk = o.get("disk_space", 0)
+    disk_bw = o.get("disk_bw", 0)
+    inet_dn = o.get("inet_down", 0)
+    bw_cost = o.get("internet_down_cost_per_tb", 0) or 0
+    country = o.get("geolocation", "?")
+    rel = (o.get("reliability2") or o.get("reliability") or 0) * 100
+    vram = o.get("gpu_ram", 0)
+    score = o.get("_score", 0)
+    oid = o.get("id", "?")
+    cuda = o.get("cuda_max_good", "?")
+    machine = o.get("machine_id", "?")
 
     # storage cost for 200 GB over a month (volume or local disk)
     stc_per_gb_hr = dph_stor / max(disk, 1)
@@ -268,7 +283,7 @@ def fmt_offer(rank: int, o: dict, volume_mode: bool, vol_id: int | None) -> str:
 
     bw_cost_str = f"${bw_cost:.2f}/TB" if bw_cost else "free"
     vol_str = f"  (volume V.{vol_id} → /workspace)" if volume_mode and vol_id else ""
-    marker  = "★" if rank == 1 else f"#{rank}"
+    marker = "★" if rank == 1 else f"#{rank}"
 
     # pull time estimate from R2 (200GB @ inet_down Mbps), only in no-volume mode
     pull_str = ""
@@ -293,6 +308,7 @@ def fmt_offer(rank: int, o: dict, volume_mode: bool, vol_id: int | None) -> str:
 
 # ── launch ────────────────────────────────────────────────────────────────────
 
+
 def extract_template_hash(value: str | None) -> str | None:
     if not value:
         return None
@@ -311,10 +327,10 @@ def build_env(volume_mode: bool, vol_id: int | None) -> str:
     env_vars = (
         f'-e BOOT_SCRIPT="{BOOT_SCRIPT_URL}" '
         f'-e MEDO_ON_START_URL="{ON_START_URL}" '
-        f'-e ON_START_WAIT_SUPERVISORD_SECONDS=200 '
+        f"-e ON_START_WAIT_SUPERVISORD_SECONDS=200 "
         f'-e OPEN_BUTTON_PORT="1111" '
         f'-e DATA_DIRECTORY="/workspace/" '
-        f'-e MODELS_ROOT=/workspace/ComfyUI/models'
+        f"-e MODELS_ROOT=/workspace/ComfyUI/models"
     )
     return f"{ports} {vol_mount}{env_vars}"
 
@@ -336,11 +352,18 @@ def launch_instance(
         print(f"[launch] Volume V.{vol_id} will be mounted at /workspace")
 
     cmd = [
-        "vastai", "create", "instance", str(offer_id),
-        "--disk", str(disk_int),
-        "--env", build_env(volume_mode, vol_id),
-        "--onstart-cmd", "entrypoint.sh",
-        "--ssh", "--direct",
+        "vastai",
+        "create",
+        "instance",
+        str(offer_id),
+        "--disk",
+        str(disk_int),
+        "--env",
+        build_env(volume_mode, vol_id),
+        "--onstart-cmd",
+        "entrypoint.sh",
+        "--ssh",
+        "--direct",
     ]
 
     if template_hash:
@@ -353,6 +376,7 @@ def launch_instance(
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
+
 
 def pick_gpu() -> str:
     print("\n  Select GPU type:\n")
@@ -378,26 +402,51 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    parser.add_argument("--gpu", default=None,
-                        help="GPU model — skips interactive picker")
-    parser.add_argument("--volume", default=None, metavar="V.<ID>",
-                        help="Vast volume id (V.1234 or 1234) — locks to that machine, mounts /workspace")
-    parser.add_argument("--min-disk", type=float, default=DEFAULT_MIN_DISK,
-                        help=f"Min disk GB for no-volume mode (default: {DEFAULT_MIN_DISK})")
-    parser.add_argument("--max-price", type=float, default=DEFAULT_MAX_PRICE,
-                        help=f"Max $/hr (default: {DEFAULT_MAX_PRICE})")
-    parser.add_argument("--max-bwcost", type=float, default=DEFAULT_MAX_BWCOST,
-                        help=f"Max bandwidth $/TB (default: {DEFAULT_MAX_BWCOST})")
-    parser.add_argument("--min-reliability", type=float, default=DEFAULT_MIN_RELIABILITY,
-                        help=f"Min reliability 0..1 (default: {DEFAULT_MIN_RELIABILITY})")
-    parser.add_argument("--image", default=COMFYUI_IMAGE,
-                        help="Docker image")
-    parser.add_argument("--template-hash", default=DEFAULT_TEMPLATE_HASH,
-                        help="Vast template hash or URL")
-    parser.add_argument("--launch", action="store_true",
-                        help="Auto-launch best offer without prompting")
-    parser.add_argument("--top", type=int, default=3,
-                        help="Offers to show (default: 3)")
+    parser.add_argument(
+        "--gpu", default=None, help="GPU model — skips interactive picker"
+    )
+    parser.add_argument(
+        "--volume",
+        default=None,
+        metavar="V.<ID>",
+        help="Vast volume id (V.1234 or 1234) — locks to that machine, mounts /workspace",
+    )
+    parser.add_argument(
+        "--min-disk",
+        type=float,
+        default=DEFAULT_MIN_DISK,
+        help=f"Min disk GB for no-volume mode (default: {DEFAULT_MIN_DISK})",
+    )
+    parser.add_argument(
+        "--max-price",
+        type=float,
+        default=DEFAULT_MAX_PRICE,
+        help=f"Max $/hr (default: {DEFAULT_MAX_PRICE})",
+    )
+    parser.add_argument(
+        "--max-bwcost",
+        type=float,
+        default=DEFAULT_MAX_BWCOST,
+        help=f"Max bandwidth $/TB (default: {DEFAULT_MAX_BWCOST})",
+    )
+    parser.add_argument(
+        "--min-reliability",
+        type=float,
+        default=DEFAULT_MIN_RELIABILITY,
+        help=f"Min reliability 0..1 (default: {DEFAULT_MIN_RELIABILITY})",
+    )
+    parser.add_argument("--image", default=COMFYUI_IMAGE, help="Docker image")
+    parser.add_argument(
+        "--template-hash",
+        default=DEFAULT_TEMPLATE_HASH,
+        help="Vast template hash or URL",
+    )
+    parser.add_argument(
+        "--launch", action="store_true", help="Auto-launch best offer without prompting"
+    )
+    parser.add_argument(
+        "--top", type=int, default=3, help="Offers to show (default: 3)"
+    )
     args = parser.parse_args()
 
     # resolve volume first — determines machine_id and scoring profile
@@ -412,7 +461,11 @@ def main():
     if args.gpu is None:
         args.gpu = pick_gpu()
 
-    mode_str = f"volume=V.{vol_id} machine={machine_id}" if volume_mode else f"disk≥{args.min_disk}GB (no volume)"
+    mode_str = (
+        f"volume=V.{vol_id} machine={machine_id}"
+        if volume_mode
+        else f"disk≥{args.min_disk}GB (no volume)"
+    )
     print(
         f"\n[search] GPU={args.gpu}  {mode_str}  "
         f"price≤${args.max_price}/hr  bw_cost≤${args.max_bwcost}/TB  "
@@ -436,14 +489,20 @@ def main():
                 f"        Try without --volume to search all machines."
             )
         else:
-            print("[error] No offers found — try relaxing --max-price or --min-reliability")
+            print(
+                "[error] No offers found — try relaxing --max-price or --min-reliability"
+            )
         sys.exit(1)
 
     ranked = score_offers(offers, volume_mode)
     top = ranked[: args.top]
 
     W = WEIGHTS_VOLUME if volume_mode else WEIGHTS_NO_VOLUME
-    profile = "volume mode (disk_bw + reliability boosted)" if volume_mode else "no-volume mode (price + inet_down boosted)"
+    profile = (
+        "volume mode (disk_bw + reliability boosted)"
+        if volume_mode
+        else "no-volume mode (price + inet_down boosted)"
+    )
     print(f"\n{'─'*64}")
     print(f"  Found {len(offers)} offers — top {len(top)} — scoring: {profile}")
     print(f"{'─'*64}")
@@ -455,13 +514,22 @@ def main():
 
     if args.launch:
         best = top[0]
-        launch_instance(best["id"], args.min_disk, args.image, args.template_hash, volume_mode, vol_id)
+        launch_instance(
+            best["id"],
+            args.min_disk,
+            args.image,
+            args.template_hash,
+            volume_mode,
+            vol_id,
+        )
         return
 
     # interactive
     print("\nOptions:")
     for i, o in enumerate(top, 1):
-        print(f"  [{i}] Rent #{i}  ID {o['id']}  ${o['dph_total']:.4f}/hr  score={o['_score']:.3f}")
+        print(
+            f"  [{i}] Rent #{i}  ID {o['id']}  ${o['dph_total']:.4f}/hr  score={o['_score']:.3f}"
+        )
     print("  [q] Quit")
 
     try:
@@ -478,8 +546,17 @@ def main():
         idx = int(choice) - 1
         if 0 <= idx < len(top):
             selected = top[idx]
-            disk_to_use = min(max(args.min_disk, selected.get("disk_space", args.min_disk)), 500)
-            launch_instance(selected["id"], disk_to_use, args.image, args.template_hash, volume_mode, vol_id)
+            disk_to_use = min(
+                max(args.min_disk, selected.get("disk_space", args.min_disk)), 500
+            )
+            launch_instance(
+                selected["id"],
+                disk_to_use,
+                args.image,
+                args.template_hash,
+                volume_mode,
+                vol_id,
+            )
         else:
             print("Invalid choice.")
     except ValueError:
